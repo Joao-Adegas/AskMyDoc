@@ -1,0 +1,1 @@
+pip install requests fastapi python-multipart pymupdf python-docx markdown uvicorn

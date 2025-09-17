@@ -4,6 +4,8 @@ import fitz  # PyMuPDF
 import docx
 import markdown
 import os
+import requests
+import json
 import tempfile
 import subprocess
 
@@ -29,23 +31,42 @@ def extract_text_from_md(file_path):
 
 # Função para interagir com o modelo LLaMA via Ollama
 def ask_llama(question, context):
-    prompt = f"""Use o contexto abaixo para responder à pergunta:
-    
+    prompt = f"""
+Você é um assistente que responde **somente em JSON válido**.
+Extraia apenas as perguntas mais relevantes do contexto abaixo e retorne no seguinte formato:
+
+{{
+  "perguntas": {{
+    "pergunta_1": "...",
+    "pergunta_2": "...",
+    "pergunta_3": "..."
+  }}
+}}
+
+Responda em português correto, sem erros de acentuação.
+
 Contexto:
 {context}
 
-Pergunta:
+Pergunta do usuário:
 {question}
+"""
 
-Resposta:"""
-
-    # Usando a API do Ollama local (ex: http://localhost:11434)
-    result = subprocess.run(
-        ["ollama", "run", "llama3", prompt],
-        capture_output=True,
-        text=True
+    response = requests.post(
+        "http://localhost:11434/api/generate",
+        json={"model": "llama3", "prompt": prompt, "stream": False}
     )
-    return result.stdout.strip()
+
+    if response.status_code == 200:
+        try:
+            data = response.json().get("response", "").strip()
+            # Tentar converter direto em JSON
+            return json.loads(data)
+        except Exception:
+            # Se vier resposta quebrada, devolve como string
+            return {"erro": "A resposta não veio em JSON válido", "raw": data}
+    else:
+        return {"erro": f"Ollama retornou {response.status_code}", "detalhes": response.text}
 
 @app.post("/ask")
 async def ask_document_question(file: UploadFile = File(...), question: str = Form(...)):
