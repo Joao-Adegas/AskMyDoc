@@ -45,3 +45,21 @@ source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
+```
+
+## Request example
+
+```bash
+POST
+
+Body:form-data
+
+key           |       value
+------------------------------
+files          |       UploadFile
+questions  |       Faça 15 perguntas em relação a esse documento
+
+```
+
+
+
