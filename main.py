@@ -250,6 +250,220 @@ async def check_ollama():
             return {"status": "error", "message": "Ollama não está respondendo corretamente"}
     except Exception as e:
         return {"status": "error", "message": f"Não foi possível conectar ao Ollama: {str(e)}"}
+    
+AI_CONFIG = {
+    "model": "llama3",
+    "temperature": 0.3,
+    "top_p": 0.9,
+    "top_k": 40,
+    "repeat_penalty": 1.1,
+    "seed": None,
+    "num_ctx": 4096,
+    "num_predict": 2048,
+    "stop": None,
+    "tfs_z": 1.0,
+    "typical_p": 1.0,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "mirostat": 0,
+    "mirostat_tau": 5.0,
+    "mirostat_eta": 0.1,
+    "penalize_newline": True,
+    "numa": False
+}
+    
+@app.get("/ai/config")
+async def get_ai_config():
+    """
+    Retorna as configurações atuais da IA e descrições de cada parâmetro
+    """
+    try:
+        # Busca informações do modelo atual no Ollama
+        ollama_info = {}
+        try:
+            response = requests.get("http://localhost:11434/api/show", 
+                                  json={"name": AI_CONFIG["model"]}, 
+                                  timeout=5)
+            if response.status_code == 200:
+                model_info = response.json()
+                ollama_info = {
+                    "model_info": {
+                        "name": model_info.get("model", "N/A"),
+                        "size": model_info.get("size", "N/A"),
+                        "modified_at": model_info.get("modified_at", "N/A"),
+                        "parameter_size": model_info.get("details", {}).get("parameter_size", "N/A"),
+                        "quantization_level": model_info.get("details", {}).get("quantization_level", "N/A")
+                    }
+                }
+        except:
+            ollama_info = {"model_info": "Não foi possível obter informações do modelo"}
+
+        return {
+            "current_config": AI_CONFIG,
+            "ollama_model_info": ollama_info,
+            "parameters_description": {
+                "model": {
+                    "current": AI_CONFIG["model"],
+                    "description": "Nome do modelo a ser usado",
+                    "type": "string",
+                    "examples": ["llama3", "llama3.1", "mistral", "codellama"]
+                },
+                "temperature": {
+                    "current": AI_CONFIG["temperature"],
+                    "description": "Controla a criatividade/aleatoriedade das respostas",
+                    "type": "float",
+                    "range": "0.0 - 2.0",
+                    "recommendations": {
+                        "0.1-0.3": "Respostas consistentes e focadas",
+                        "0.5-0.7": "Balanceado entre criatividade e coerência", 
+                        "0.8-1.2": "Mais criativo e variado",
+                        "1.3-2.0": "Muito criativo, pode ser incoerente"
+                    }
+                },
+                "top_p": {
+                    "current": AI_CONFIG["top_p"],
+                    "description": "Amostragem nucleus - considera apenas tokens com probabilidade acumulada até este valor",
+                    "type": "float",
+                    "range": "0.0 - 1.0",
+                    "recommendations": {
+                        "0.1-0.3": "Muito focado, pouca variação",
+                        "0.7-0.9": "Boa variedade mantendo qualidade",
+                        "0.95-1.0": "Máxima variedade possível"
+                    }
+                },
+                "top_k": {
+                    "current": AI_CONFIG["top_k"],
+                    "description": "Limita a seleção aos K tokens mais prováveis",
+                    "type": "integer",
+                    "range": "1 - 100",
+                    "recommendations": {
+                        "10-20": "Muito focado",
+                        "40-60": "Balanceado (recomendado)",
+                        "80-100": "Mais variado"
+                    }
+                },
+                "repeat_penalty": {
+                    "current": AI_CONFIG["repeat_penalty"],
+                    "description": "Penaliza repetições de palavras/frases",
+                    "type": "float", 
+                    "range": "0.0 - 2.0",
+                    "recommendations": {
+                        "1.0": "Sem penalização",
+                        "1.1-1.2": "Penalização leve (recomendado)",
+                        "1.3-1.5": "Penalização moderada",
+                        "1.6+": "Penalização forte"
+                    }
+                },
+                "seed": {
+                    "current": AI_CONFIG["seed"],
+                    "description": "Semente para reproduzibilidade (null = aleatório)",
+                    "type": "integer ou null",
+                    "note": "Use um número fixo para respostas reproduzíveis"
+                },
+                "num_ctx": {
+                    "current": AI_CONFIG["num_ctx"],
+                    "description": "Tamanho do contexto (quantos tokens o modelo pode 'lembrar')",
+                    "type": "integer",
+                    "range": "512 - 32768",
+                    "recommendations": {
+                        "2048": "Documentos pequenos",
+                        "4096": "Padrão - boa para maioria dos casos",
+                        "8192": "Documentos médios",
+                        "16384+": "Documentos grandes (usa mais memória)"
+                    }
+                },
+                "num_predict": {
+                    "current": AI_CONFIG["num_predict"],
+                    "description": "Máximo de tokens que o modelo pode gerar na resposta",
+                    "type": "integer",
+                    "range": "1 - 4096",
+                    "note": "-1 = sem limite"
+                },
+                "presence_penalty": {
+                    "current": AI_CONFIG["presence_penalty"],
+                    "description": "Penaliza tokens que já apareceram (encoraja novos tópicos)",
+                    "type": "float",
+                    "range": "-2.0 - 2.0"
+                },
+                "frequency_penalty": {
+                    "current": AI_CONFIG["frequency_penalty"],
+                    "description": "Penaliza tokens baseado na frequência de aparição",
+                    "type": "float",
+                    "range": "-2.0 - 2.0"
+                },
+                "mirostat": {
+                    "current": AI_CONFIG["mirostat"],
+                    "description": "Algoritmo de amostragem Mirostat (0=desabilitado, 1=Mirostat 1, 2=Mirostat 2)",
+                    "type": "integer",
+                    "range": "0 - 2"
+                },
+                "mirostat_tau": {
+                    "current": AI_CONFIG["mirostat_tau"],
+                    "description": "Controla coerência vs diversidade no Mirostat",
+                    "type": "float",
+                    "range": "0.0 - 10.0"
+                },
+                "mirostat_eta": {
+                    "current": AI_CONFIG["mirostat_eta"],
+                    "description": "Taxa de aprendizado do Mirostat",
+                    "type": "float",
+                    "range": "0.0 - 1.0"
+                }
+            },
+            "presets": {
+                "creative": {
+                    "description": "Para respostas criativas e variadas",
+                    "config": {
+                        "temperature": 0.8,
+                        "top_p": 0.9,
+                        "top_k": 60,
+                        "repeat_penalty": 1.1
+                    }
+                },
+                "consistent": {
+                    "description": "Para respostas consistentes e focadas",
+                    "config": {
+                        "temperature": 0.2,
+                        "top_p": 0.8,
+                        "top_k": 30,
+                        "repeat_penalty": 1.15
+                    }
+                },
+                "balanced": {
+                    "description": "Balanceado entre criatividade e consistência",
+                    "config": {
+                        "temperature": 0.5,
+                        "top_p": 0.85,
+                        "top_k": 40,
+                        "repeat_penalty": 1.1
+                    }
+                },
+                "analytical": {
+                    "description": "Para análises detalhadas e técnicas",
+                    "config": {
+                        "temperature": 0.3,
+                        "top_p": 0.9,
+                        "top_k": 50,
+                        "repeat_penalty": 1.05
+                    }
+                }
+            },
+            "usage_tips": [
+                "Para perguntas técnicas, use temperature baixa (0.1-0.3)",
+                "Para conteúdo criativo, use temperature alta (0.7-1.0)", 
+                "Se as respostas estão muito repetitivas, aumente repeat_penalty",
+                "Se as respostas estão muito incoerentes, diminua temperature e top_p",
+                "Para documentos grandes, aumente num_ctx",
+                "Use seed fixo para respostas reproduzíveis em testes"
+            ]
+        }
+        
+    except Exception as e:
+        return JSONResponse(
+            content={"error": f"Erro ao obter configurações: {str(e)}"}, 
+            status_code=500
+        )
+
 
 if __name__ == "__main__":
     import uvicorn
